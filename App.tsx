@@ -27,6 +27,8 @@ export default function App() {
 
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [needsWebPermission, setNeedsWebPermission] = useState(false);
+  const [showPwaTip, setShowPwaTip] = useState(false);
 
   const {
     timers,
@@ -41,6 +43,30 @@ export default function App() {
     deleteTimer,
     clearHistory,
   } = useTimers();
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const isIos = /iPhone|iPad|iPod/.test(window.navigator.userAgent);
+      const isStandaloneMode = (window.navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches;
+      if (isIos && !isStandaloneMode) {
+        setShowPwaTip(true);
+      }
+      if ('Notification' in window && window.Notification.permission !== 'granted') {
+        setNeedsWebPermission(true);
+      }
+    }
+  }, []);
+
+  const handleEnableAlerts = async () => {
+    const { playAlarmSound } = await import('./src/services/soundService');
+    playAlarmSound();
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
+      const perm = await window.Notification.requestPermission();
+      if (perm === 'granted') {
+        setNeedsWebPermission(false);
+      }
+    }
+  };
 
   // Listen to incoming notifications and user responses
   useEffect(() => {
@@ -77,6 +103,39 @@ export default function App() {
         onOpenAddModal={() => setAddModalVisible(true)}
         isDark={isDark}
       />
+
+      {/* Web Notification & Sound Permission Prompt */}
+      {needsWebPermission && (
+        <TouchableOpacity
+          style={[styles.webBanner, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}
+          onPress={handleEnableAlerts}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="notifications-outline" size={20} color={theme.primary} />
+          <View style={styles.webBannerTextContainer}>
+            <Text style={[styles.webBannerTitle, { color: theme.primary }]}>
+              Enable Sound & Alerts
+            </Text>
+            <Text style={[styles.webBannerSub, { color: theme.textSecondary }]}>
+              Tap here so your phone can chime and show alerts when timers end.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={theme.primary} />
+        </TouchableOpacity>
+      )}
+
+      {/* iOS Safari Home Screen Tip */}
+      {showPwaTip && (
+        <View style={[styles.tipBanner, { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder }]}>
+          <Ionicons name="phone-portrait-outline" size={18} color={theme.textPrimary} />
+          <Text style={[styles.tipBannerText, { color: theme.textSecondary }]}>
+            Tip: Tap <Text style={{ fontWeight: '700' }}>Share ⬆️</Text> then <Text style={{ fontWeight: '700' }}>"Add to Home Screen"</Text> to install as an iPhone app!
+          </Text>
+          <TouchableOpacity onPress={() => setShowPwaTip(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="close" size={16} color={theme.textMuted} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Due Now Alert Banner if any countdown reached zero */}
       {completedCount > 0 && (
@@ -221,5 +280,41 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
+  },
+  webBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 10,
+  },
+  webBannerTextContainer: {
+    flex: 1,
+  },
+  webBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  webBannerSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  tipBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  tipBannerText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

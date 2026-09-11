@@ -13,6 +13,7 @@ import {
   cancelMedicationNotification,
   requestNotificationPermissions,
 } from '../services/notificationService';
+import { playAlarmSound } from '../services/soundService';
 
 export function useTimers() {
   const [timers, setTimers] = useState<CountdownTimer[]>([]);
@@ -113,6 +114,7 @@ export function useTimers() {
           if (Platform.OS !== 'web') {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           }
+          playAlarmSound();
           return {
             ...timer,
             status: 'completed' as const,
