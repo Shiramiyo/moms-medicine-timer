@@ -34,6 +34,7 @@ export default function App() {
     timers,
     history,
     isLoaded,
+    isCloudSynced,
     addTimer,
     pauseTimer,
     resumeTimer,
@@ -175,6 +176,14 @@ export default function App() {
               {timers.length} Total
             </Text>
           </View>
+          {isCloudSynced && (
+            <View style={[styles.summaryPill, { marginLeft: 'auto' }]}>
+              <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
+              <Text style={[styles.summaryText, { color: '#10B981', fontWeight: '700' }]}>
+                Family Sync
+              </Text>
+            </View>
+          )}
         </View>
       )}
 

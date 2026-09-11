@@ -14,11 +14,19 @@ import {
   requestNotificationPermissions,
 } from '../services/notificationService';
 import { playAlarmSound } from '../services/soundService';
+import {
+  listenToCloudTimers,
+  saveCloudTimers,
+  listenToCloudHistory,
+  saveCloudHistory,
+  isCloudAvailable,
+} from '../services/firebaseService';
 
 export function useTimers() {
   const [timers, setTimers] = useState<CountdownTimer[]>([]);
   const [history, setHistory] = useState<MedicationLogEntry[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const timersRef = useRef<CountdownTimer[]>([]);
 
@@ -65,23 +73,41 @@ export function useTimers() {
         ];
         setTimers(initialTimers);
         await saveTimers(initialTimers);
-
-        // Schedule notification for initial sample timers
-        for (const t of initialTimers) {
-          if (t.targetTimestamp) {
-            const sec = Math.ceil((t.targetTimestamp - Date.now()) / 1000);
-            scheduleMedicationNotification(t.id, t.name, t.note, sec).then((notifId) => {
-              if (notifId) t.notificationId = notifId;
-            });
-          }
-        }
       }
 
       setHistory(savedHistory);
       setIsLoaded(true);
+
+      // Subscribe to real-time cloud updates across all family phones
+      if (isCloudAvailable()) {
+        const unsubTimers = listenToCloudTimers((cloudTimers) => {
+          setIsCloudSynced(true);
+          if (cloudTimers && cloudTimers.length > 0) {
+            setTimers(cloudTimers);
+            saveTimers(cloudTimers);
+          }
+        });
+
+        const unsubHistory = listenToCloudHistory((cloudHistory) => {
+          if (cloudHistory && cloudHistory.length > 0) {
+            setHistory(cloudHistory);
+            saveMedicationLog(cloudHistory);
+          }
+        });
+
+        return () => {
+          if (unsubTimers) unsubTimers();
+          if (unsubHistory) unsubHistory();
+        };
+      }
     }
 
-    init();
+    const unsubPromise = init();
+    return () => {
+      unsubPromise.then((unsub) => {
+        if (typeof unsub === 'function') unsub();
+      });
+    };
   }, []);
 
   // Save whenever timers change (after initial load)
@@ -126,6 +152,7 @@ export function useTimers() {
 
       if (hasUpdates) {
         setTimers(updated);
+        saveCloudTimers(updated);
       }
     }, 1000);
 
@@ -172,7 +199,9 @@ export function useTimers() {
         createdAt: Date.now(),
       };
 
-      setTimers((prev) => [newTimer, ...prev]);
+      const updated = [newTimer, ...timersRef.current];
+      setTimers(updated);
+      saveCloudTimers(updated);
     },
     []
   );
@@ -183,24 +212,25 @@ export function useTimers() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    setTimers((prev) =>
-      prev.map((timer) => {
-        if (timer.id !== id || timer.status !== 'running') return timer;
+    const updated = timersRef.current.map((timer) => {
+      if (timer.id !== id || timer.status !== 'running') return timer;
 
-        cancelMedicationNotification(timer.notificationId);
+      cancelMedicationNotification(timer.notificationId);
 
-        const remainingMs = timer.targetTimestamp ? timer.targetTimestamp - Date.now() : 0;
-        const pausedSec = Math.max(0, Math.ceil(remainingMs / 1000));
+      const remainingMs = timer.targetTimestamp ? timer.targetTimestamp - Date.now() : 0;
+      const pausedSec = Math.max(0, Math.ceil(remainingMs / 1000));
 
-        return {
-          ...timer,
-          status: 'paused',
-          targetTimestamp: null,
-          pausedRemainingSeconds: pausedSec,
-          notificationId: null,
-        };
-      })
-    );
+      return {
+        ...timer,
+        status: 'paused' as const,
+        targetTimestamp: null,
+        pausedRemainingSeconds: pausedSec,
+        notificationId: null,
+      };
+    });
+
+    setTimers(updated);
+    saveCloudTimers(updated);
   }, []);
 
   // Resume timer
@@ -222,17 +252,18 @@ export function useTimers() {
       remainingSec
     );
 
-    setTimers((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-        return {
-          ...t,
-          status: 'running',
-          targetTimestamp,
-          notificationId,
-        };
-      })
-    );
+    const updated = timersRef.current.map((t) => {
+      if (t.id !== id) return t;
+      return {
+        ...t,
+        status: 'running' as const,
+        targetTimestamp,
+        notificationId,
+      };
+    });
+
+    setTimers(updated);
+    saveCloudTimers(updated);
   }, []);
 
   // Snooze timer (+5m, +15m, etc.)
@@ -244,7 +275,6 @@ export function useTimers() {
     const timer = timersRef.current.find((t) => t.id === id);
     if (!timer) return;
 
-    // Cancel existing notification
     await cancelMedicationNotification(timer.notificationId);
 
     const extraSeconds = snoozeMinutes * 60;
@@ -257,19 +287,20 @@ export function useTimers() {
       extraSeconds
     );
 
-    setTimers((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-        return {
-          ...t,
-          status: 'running',
-          targetTimestamp,
-          pausedRemainingSeconds: extraSeconds,
-          notificationId,
-          completedAt: undefined,
-        };
-      })
-    );
+    const updated = timersRef.current.map((t) => {
+      if (t.id !== id) return t;
+      return {
+        ...t,
+        status: 'running' as const,
+        targetTimestamp,
+        pausedRemainingSeconds: extraSeconds,
+        notificationId,
+        completedAt: undefined,
+      };
+    });
+
+    setTimers(updated);
+    saveCloudTimers(updated);
   }, []);
 
   // Reset timer
@@ -283,19 +314,20 @@ export function useTimers() {
 
     await cancelMedicationNotification(timer.notificationId);
 
-    setTimers((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-        return {
-          ...t,
-          status: 'paused',
-          targetTimestamp: null,
-          pausedRemainingSeconds: t.durationSeconds,
-          notificationId: null,
-          completedAt: undefined,
-        };
-      })
-    );
+    const updated = timersRef.current.map((t) => {
+      if (t.id !== id) return t;
+      return {
+        ...t,
+        status: 'paused' as const,
+        targetTimestamp: null,
+        pausedRemainingSeconds: t.durationSeconds,
+        notificationId: null,
+        completedAt: undefined,
+      };
+    });
+
+    setTimers(updated);
+    saveCloudTimers(updated);
   }, []);
 
   // Mark as Taken (Logs to history, resets or auto-repeats if configured)
@@ -319,9 +351,12 @@ export function useTimers() {
       takenAt: Date.now(),
     };
 
-    setHistory((prev) => [logEntry, ...prev]);
+    const updatedHistory = [logEntry, ...history];
+    setHistory(updatedHistory);
+    saveCloudHistory(updatedHistory);
 
     // If timer has auto-repeat interval, restart it!
+    let updatedTimers: CountdownTimer[];
     if (timer.repeatEveryHours && timer.repeatEveryHours > 0) {
       const repeatSeconds = timer.repeatEveryHours * 3600;
       const targetTimestamp = Date.now() + repeatSeconds * 1000;
@@ -333,37 +368,35 @@ export function useTimers() {
         repeatSeconds
       );
 
-      setTimers((prev) =>
-        prev.map((t) => {
-          if (t.id !== id) return t;
-          return {
-            ...t,
-            durationSeconds: repeatSeconds,
-            status: 'running',
-            targetTimestamp,
-            pausedRemainingSeconds: repeatSeconds,
-            notificationId,
-            completedAt: undefined,
-          };
-        })
-      );
+      updatedTimers = timersRef.current.map((t) => {
+        if (t.id !== id) return t;
+        return {
+          ...t,
+          durationSeconds: repeatSeconds,
+          status: 'running' as const,
+          targetTimestamp,
+          pausedRemainingSeconds: repeatSeconds,
+          notificationId,
+          completedAt: undefined,
+        };
+      });
     } else {
-      // Just mark completed or reset to paused
-      setTimers((prev) =>
-        prev.map((t) => {
-          if (t.id !== id) return t;
-          return {
-            ...t,
-            status: 'paused',
-            targetTimestamp: null,
-            pausedRemainingSeconds: t.durationSeconds,
-            notificationId: null,
-            completedAt: undefined,
-          };
-        })
-      );
+      updatedTimers = timersRef.current.map((t) => {
+        if (t.id !== id) return t;
+        return {
+          ...t,
+          status: 'paused' as const,
+          targetTimestamp: null,
+          pausedRemainingSeconds: t.durationSeconds,
+          notificationId: null,
+          completedAt: undefined,
+        };
+      });
     }
-  }, []);
+
+    setTimers(updatedTimers);
+    saveCloudTimers(updatedTimers);
+  }, [history]);
 
   // Delete timer
   const deleteTimer = useCallback(async (id: string) => {
@@ -376,18 +409,22 @@ export function useTimers() {
       await cancelMedicationNotification(timer.notificationId);
     }
 
-    setTimers((prev) => prev.filter((t) => t.id !== id));
+    const updated = timersRef.current.filter((t) => t.id !== id);
+    setTimers(updated);
+    saveCloudTimers(updated);
   }, []);
 
   // Clear all taken history
   const clearHistory = useCallback(async () => {
     setHistory([]);
+    saveCloudHistory([]);
   }, []);
 
   return {
     timers,
     history,
     isLoaded,
+    isCloudSynced,
     currentTime,
     addTimer,
     pauseTimer,
