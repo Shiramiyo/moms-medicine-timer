@@ -8,18 +8,26 @@ export async function sendTelegramMessage(
   replyMarkup?: any
 ): Promise<boolean> {
   try {
-    const url = `https://api.telegram.org/bot${TELEGRAM_CONFIG.botToken}/sendMessage`;
-    const payload: any = {
-      chat_id: TELEGRAM_CONFIG.chatId,
-      text,
-      parse_mode: 'Markdown',
-    };
+    const isWeb = typeof window !== 'undefined';
+    const endpoint = isWeb
+      ? '/api/telegram'
+      : `https://api.telegram.org/bot${TELEGRAM_CONFIG.botToken}/sendMessage`;
 
-    if (replyMarkup) {
-      payload.reply_markup = replyMarkup;
-    }
+    const payload: any = isWeb
+      ? {
+          action: 'sendMessage',
+          chatId: TELEGRAM_CONFIG.chatId,
+          text,
+          replyMarkup,
+        }
+      : {
+          chat_id: TELEGRAM_CONFIG.chatId,
+          text,
+          parse_mode: 'Markdown',
+          reply_markup: replyMarkup,
+        };
 
-    const response = await fetch(url, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

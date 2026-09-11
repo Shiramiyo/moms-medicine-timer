@@ -34,6 +34,22 @@ export default async function handler(req: any, res: any) {
   try {
     const update = req.body;
 
+    // Direct sendMessage request from frontend (bypasses browser CORS)
+    if (update && update.action === 'sendMessage') {
+      const resSend = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: update.chatId || '-596427437',
+          text: update.text,
+          parse_mode: 'Markdown',
+          reply_markup: update.replyMarkup,
+        }),
+      });
+      const data = await resSend.json();
+      return res.status(200).json(data);
+    }
+
     // 1. Handle Inline Button Clicks (e.g. Mark as Taken / Snooze)
     if (update.callback_query) {
       const cq = update.callback_query;
