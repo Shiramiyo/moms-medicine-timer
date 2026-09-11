@@ -314,6 +314,42 @@ export function useTimers() {
     saveCloudTimers(updated);
   }, []);
 
+  // Redo / Restart timer from its original duration
+  const redoTimer = useCallback(async (id: string) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    const timer = timersRef.current.find((t) => t.id === id);
+    if (!timer) return;
+
+    await cancelMedicationNotification(timer.notificationId);
+
+    const targetTimestamp = Date.now() + timer.durationSeconds * 1000;
+
+    const notificationId = await scheduleMedicationNotification(
+      timer.id,
+      timer.name,
+      timer.note,
+      timer.durationSeconds
+    );
+
+    const updated = timersRef.current.map((t) => {
+      if (t.id !== id) return t;
+      return {
+        ...t,
+        status: 'running' as const,
+        targetTimestamp,
+        pausedRemainingSeconds: t.durationSeconds,
+        notificationId,
+        completedAt: undefined,
+      };
+    });
+
+    setTimers(updated);
+    saveCloudTimers(updated);
+  }, []);
+
   // Reset timer
   const resetTimer = useCallback(async (id: string) => {
     if (Platform.OS !== 'web') {
@@ -443,6 +479,7 @@ export function useTimers() {
     addTimer,
     pauseTimer,
     resumeTimer,
+    redoTimer,
     snoozeTimer,
     resetTimer,
     markAsTaken,

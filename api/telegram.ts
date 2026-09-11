@@ -109,6 +109,40 @@ export default async function handler(req: any, res: any) {
         } else {
           await answerCallback(cq.id, 'Timer not found or already completed');
         }
+      } else if (data.startsWith('redo_')) {
+        const timerId = data.replace('redo_', '');
+
+        const resTimers = await fetch(`${FIREBASE_DB_URL}/family_timers.json`);
+        const timers = (await resTimers.json()) || [];
+        const timerList = Array.isArray(timers) ? timers : Object.values(timers);
+
+        const timerIndex = timerList.findIndex((t: any) => t.id === timerId);
+        if (timerIndex !== -1) {
+          const timer: any = timerList[timerIndex];
+          const restartSec = timer.durationSeconds || 3600;
+          timerList[timerIndex] = {
+            ...timer,
+            status: 'running',
+            targetTimestamp: Date.now() + restartSec * 1000,
+            pausedRemainingSeconds: restartSec,
+          };
+
+          await fetch(`${FIREBASE_DB_URL}/family_timers.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(timerList),
+          });
+
+          const durHuman =
+            restartSec >= 3600
+              ? `${Math.floor(restartSec / 3600)}h`
+              : `${Math.floor(restartSec / 60)}m`;
+          await answerCallback(cq.id, 'Countdown restarted!');
+          await sendTelegram(
+            chatId,
+            `🔁 *${timer.name}* countdown restarted (${durHuman}) by *${userName}*! It is now running automatically.`
+          );
+        }
       } else if (data.startsWith('snooze_')) {
         const timerId = data.replace('snooze_', '');
 

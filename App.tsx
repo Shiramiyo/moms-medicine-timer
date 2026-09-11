@@ -38,7 +38,7 @@ export default function App() {
     addTimer,
     pauseTimer,
     resumeTimer,
-    snoozeTimer,
+    redoTimer,
     resetTimer,
     markAsTaken,
     deleteTimer,
@@ -206,7 +206,7 @@ export default function App() {
               timer={timer}
               onPause={pauseTimer}
               onResume={resumeTimer}
-              onSnooze={snoozeTimer}
+              onRedo={redoTimer}
               onReset={resetTimer}
               onMarkAsTaken={markAsTaken}
               onDelete={deleteTimer}

@@ -13,7 +13,8 @@ interface TimerCardProps {
   timer: CountdownTimer;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
-  onSnooze: (id: string, minutes: number) => void;
+  onRedo: (id: string) => void;
+  onSnooze?: (id: string, minutes: number) => void;
   onReset: (id: string) => void;
   onMarkAsTaken: (id: string) => void;
   onDelete: (id: string) => void;
@@ -32,6 +33,7 @@ export const TimerCard: React.FC<TimerCardProps> = ({
   timer,
   onPause,
   onResume,
+  onRedo,
   onSnooze,
   onReset,
   onMarkAsTaken,
@@ -223,15 +225,15 @@ export const TimerCard: React.FC<TimerCardProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* Snooze +10m */}
+        {/* Redo Countdown (Restarts immediately without manual action) */}
         <TouchableOpacity
           style={[styles.secondaryButton, { backgroundColor: theme.badge, borderColor: theme.cardBorder }]}
-          onPress={() => onSnooze(timer.id, 10)}
+          onPress={() => onRedo(timer.id)}
           activeOpacity={0.7}
         >
-          <Ionicons name="time-outline" size={16} color={theme.textPrimary} />
+          <Ionicons name="repeat" size={16} color={theme.textPrimary} />
           <Text style={[styles.secondaryButtonText, { color: theme.textPrimary }]}>
-            +10m
+            Redo
           </Text>
         </TouchableOpacity>
 

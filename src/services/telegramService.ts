@@ -52,8 +52,8 @@ export async function sendMedicationDueAlert(
               callback_data: `taken_${timerId}`,
             },
             {
-              text: '⏰ Snooze +10m',
-              callback_data: `snooze_${timerId}`,
+              text: '🔁 Redo Countdown',
+              callback_data: `redo_${timerId}`,
             },
           ],
         ],
