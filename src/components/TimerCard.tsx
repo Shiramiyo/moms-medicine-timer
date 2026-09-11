@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CountdownTimer, MedicationCategory } from '../types/timer';
 import { Colors } from '../theme/colors';
@@ -56,6 +56,27 @@ export const TimerCard: React.FC<TimerCardProps> = ({
     : isRunning
     ? theme.primary
     : theme.cardBorder;
+
+  const handleAddToCalendar = () => {
+    const targetMs = timer.targetTimestamp || (Date.now() + timer.durationSeconds * 1000);
+    const startDate = new Date(targetMs);
+    const endDate = new Date(targetMs + 15 * 60 * 1000);
+
+    const formatGoogleDate = (d: Date) =>
+      d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    const startStr = formatGoogleDate(startDate);
+    const endStr = formatGoogleDate(endDate);
+
+    const title = encodeURIComponent(`💊 Mom's Medicine: ${timer.name}`);
+    const details = encodeURIComponent(
+      timer.note
+        ? `${timer.note}\nPlease give mom her medicine now!`
+        : `Time for mom's medicine: ${timer.name}`
+    );
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}`;
+
+    Linking.openURL(url);
+  };
 
   return (
     <View
@@ -221,6 +242,15 @@ export const TimerCard: React.FC<TimerCardProps> = ({
           activeOpacity={0.7}
         >
           <Ionicons name="refresh-outline" size={16} color={theme.textSecondary} />
+        </TouchableOpacity>
+
+        {/* 1-Tap Google Calendar Alarm */}
+        <TouchableOpacity
+          style={[styles.secondaryButton, { backgroundColor: theme.badge, borderColor: theme.cardBorder }]}
+          onPress={handleAddToCalendar}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="calendar-outline" size={16} color={theme.primary} />
         </TouchableOpacity>
       </View>
     </View>

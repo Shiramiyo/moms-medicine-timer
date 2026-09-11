@@ -21,6 +21,11 @@ import {
   saveCloudHistory,
   isCloudAvailable,
 } from '../services/firebaseService';
+import {
+  sendMedicationDueAlert,
+  sendNewTimerAnnounce,
+  sendTakenAnnounce,
+} from '../services/telegramService';
 
 export function useTimers() {
   const [timers, setTimers] = useState<CountdownTimer[]>([]);
@@ -141,6 +146,7 @@ export function useTimers() {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           }
           playAlarmSound();
+          sendMedicationDueAlert(timer.name, timer.note, timer.id);
           return {
             ...timer,
             status: 'completed' as const,
@@ -202,6 +208,11 @@ export function useTimers() {
       const updated = [newTimer, ...timersRef.current];
       setTimers(updated);
       saveCloudTimers(updated);
+
+      const durStr = durationMinutes >= 60
+        ? `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60 ? (durationMinutes % 60) + 'm' : ''}`.trim()
+        : `${durationMinutes}m`;
+      sendNewTimerAnnounce(name, durStr, note);
     },
     []
   );
@@ -354,6 +365,9 @@ export function useTimers() {
     const updatedHistory = [logEntry, ...history];
     setHistory(updatedHistory);
     saveCloudHistory(updatedHistory);
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    sendTakenAnnounce(timer.name, timeStr);
 
     // If timer has auto-repeat interval, restart it!
     let updatedTimers: CountdownTimer[];
