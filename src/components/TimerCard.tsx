@@ -227,23 +227,20 @@ export const TimerCard: React.FC<TimerCardProps> = ({
 
         {/* Redo Countdown (Restarts immediately without manual action) */}
         <TouchableOpacity
-          style={[styles.secondaryButton, { backgroundColor: theme.badge, borderColor: theme.cardBorder }]}
+          style={[
+            styles.secondaryButton,
+            {
+              backgroundColor: theme.primaryLight,
+              borderColor: theme.primary,
+            },
+          ]}
           onPress={() => onRedo(timer.id)}
           activeOpacity={0.7}
         >
-          <Ionicons name="repeat" size={16} color={theme.textPrimary} />
-          <Text style={[styles.secondaryButtonText, { color: theme.textPrimary }]}>
+          <Ionicons name="repeat" size={16} color={theme.primary} />
+          <Text style={[styles.secondaryButtonText, { color: theme.primary, fontWeight: '700' }]}>
             Redo
           </Text>
-        </TouchableOpacity>
-
-        {/* Reset */}
-        <TouchableOpacity
-          style={[styles.secondaryButton, { backgroundColor: theme.badge, borderColor: theme.cardBorder }]}
-          onPress={() => onReset(timer.id)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="refresh-outline" size={16} color={theme.textSecondary} />
         </TouchableOpacity>
 
         {/* 1-Tap Google Calendar Alarm */}
@@ -252,7 +249,7 @@ export const TimerCard: React.FC<TimerCardProps> = ({
           onPress={handleAddToCalendar}
           activeOpacity={0.7}
         >
-          <Ionicons name="calendar-outline" size={16} color={theme.primary} />
+          <Ionicons name="calendar-outline" size={16} color={theme.textPrimary} />
         </TouchableOpacity>
       </View>
     </View>
