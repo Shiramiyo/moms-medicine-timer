@@ -27,6 +27,14 @@ async function answerCallback(callbackQueryId: string, text: string) {
 }
 
 export default async function handler(req: any, res: any) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(200).json({ status: 'Telegram webhook active' });
   }
@@ -36,7 +44,7 @@ export default async function handler(req: any, res: any) {
 
     // Direct sendMessage request from frontend (bypasses browser CORS)
     if (update && update.action === 'sendMessage') {
-      const resSend = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      let resSend = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -46,7 +54,22 @@ export default async function handler(req: any, res: any) {
           reply_markup: update.replyMarkup,
         }),
       });
-      const data = await resSend.json();
+      let data = await resSend.json();
+
+      // If Telegram rejects Markdown formatting, retry as plain text so it never fails!
+      if (!data.ok && data.description && data.description.includes('parse entities')) {
+        resSend = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: update.chatId || '-596427437',
+            text: update.text.replace(/[*_`]/g, ''),
+            reply_markup: update.replyMarkup,
+          }),
+        });
+        data = await resSend.json();
+      }
+
       return res.status(200).json(data);
     }
 

@@ -10,7 +10,7 @@ export async function sendTelegramMessage(
   try {
     const isWeb = typeof window !== 'undefined';
     const endpoint = isWeb
-      ? '/api/telegram'
+      ? 'https://moms-medicine-timer.vercel.app/api/telegram'
       : `https://api.telegram.org/bot${TELEGRAM_CONFIG.botToken}/sendMessage`;
 
     const payload: any = isWeb
